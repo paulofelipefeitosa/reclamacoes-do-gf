@@ -1,0 +1,135 @@
+---
+title: "Análise exploratória de reclamações do Governo Federal"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+theme_set(theme_bw())
+```
+
+Nosso objetivo é realizar a análise exploratória de reclamações do governo federal submetidas no site [reclame aqui](https://www.reclameaqui.com.br/), as reclamações são sobre a ANS e ANATEL.
+
+## Lendo os dados
+Os dados estão separados entre reclamações e avaliações. As avaliações foram realizadas através de um experimento humano para avaliar o grau de insatisfação de cada reclamação.
+```{r results='hide'}
+reclamacoes <- read_csv("../data/1-reclamacoes-selecionadas/20190515-reclamacoes-selecionadas.csv")
+avaliacoes <- read_csv("../data/3-avaliacao-humana/avaliacoes20190515.csv")
+```
+
+### Com que tipo de dados estamos trabalhando?
+
+#### **Reclamações**
+
+```{r data_types_recla}
+glimpse(reclamacoes)
+
+summary(reclamacoes)
+```
+Temos 60 observações de reclamações com 6 variáveis de interesse (excluindo **Link**), podemos observar que o conjunto de dados de reclamações possui as seguintes variáveis qualitativas:
+
+* **Orgão** - Orgão para o qual a reclamação foi direcionada.
+* **Título** - Título da reclamação.
+* **Texto** - Conteúdo textual da reclamação.
+
+Vale ressaltar que **Orgão** é uma variável que possui uma escala categórica com apenas 2 valores, *ANS* e *ANATEL*. As demais variáveis são qualitativas pura, ou seja, texto em linguagem natural que pode conter erros gramáticais tanto semânticos quanto de sintáticos.
+
+Já as variáveis quantitativas são:
+
+* **ID** - O identificador da reclamação.
+* **Data** - A data em que a reclamação foi publicada no reclame aqui.
+* **Grupo que vai avaliar** - O identificador do grupo de pessoas que realizaram a avaliação de insatisfação.
+
+Apesar da **Data** da reclamação ter um formato textual, podemos transformá-la em uma variável quantitativa de escala intervalar. Como **ID** e **Grupo** são idenficadores, então são variáveis apenas de escala ordinal que possuem valores entre 1 e 60, 1 e 8, respectivamente.
+
+
+#### **Avaliações**
+
+```{r data_types_aval}
+glimpse(avaliacoes)
+
+summary(avaliacoes)
+```
+Temos 316 avaliações de reclamações que possuem 3 variáveis de interesse:
+
+* **Matrícula** - Matrícula do avaliador da reclamação.
+* **ID da reclamação** - O identificador da reclamação que foi avaliada.
+* **Grau de insatisfação** - O grau de insatisfação dado pelo avaliador à reclamação.
+
+Podemos observar que **Matrícula** e **ID da reclamação** são variáveis de escala ordinal, contudo, **Grau de insatisfação** é uma variável de escala intervalar. O **Grau de insatisfação** deveria variar entre 1 e 5, podemos observar que aparentemente existe pelo menos uma avaliação inconsistente, analisaremos isto melhor na seção seguinte.
+
+## Perguntas
+
+### Os valores de ID e Grau de Insatisfação são consistentes?
+
+Primeiros vamos analisar a consistência dos valores de ID no conjunto de dados de reclamações e avaliações. Para reclamações vamos checar se não existe nenhum ID repetido.
+```{r consistencia_valores_id_req}
+as.data.frame(table(reclamacoes$id)) %>% 
+    ggplot(aes(x = Var1, y = Freq)) +
+    geom_point() +
+    labs(x = "ID da reclamação") +
+    theme(axis.text.x = element_text(angle = 90))
+```
+Ou seja, os IDs das reclamações são consistentes, pois não existem IDs repetidos.
+
+Para avaliações vamos checar se as avaliações foram de reclamações válidas, ou seja, com ID de 1 à 60.
+```{r consistencia_valores_id_aval}
+avaliacoes <- avaliacoes %>% 
+    rename("id" = "ID da reclamação",
+           "insatisfacao" = "Grau de insatisfação")
+
+as.data.frame(table(avaliacoes$id)) %>% 
+    ggplot(aes(x = Var1, y = Freq, colour = as.factor(Freq))) +
+    geom_point() +
+    labs(x = "ID da reclamação") +
+    theme(axis.text.x = element_text(angle = 90)) +
+    guides(colour = FALSE)
+```
+Ou seja, podemos observar que o ID das avaliações só possuem valores permitidos, de 1 à 60. Além disso, cada reclamação foi avaliada por pelo menos 3 pessoas e por no máximo 6.
+
+Em seguida, vamos analisar a consistência dos valores do grau de insatisfação das avaliações por reclamação.
+```{r consistencia_valores_insas}
+ggplot(avaliacoes, aes(x = id, y = insatisfacao, colour = as.factor(insatisfacao))) +
+    geom_point(size = 0.8) +
+    labs(x = "ID da reclamação",
+         y = "Grau de insatisfação",
+         colour = "insatisfação") +
+    geom_jitter(size = 0.8) +
+    theme(axis.text.x = element_text(angle = 90))
+    
+```
+Podemos observar que existem valores não válidos de insatisfação, os valores deveriam estar apenas entre 1 e 5, porém existem duas avaliações possuem o valor 6, ***o que nos leva a perguntar se o avaliador queria reforçar a grande insatisfação da reclamação ou se foi uma avaliação de "má fé"?***
+
+### A alocação de grupos para avaliar as reclamações foi justa?
+
+Para responder esta pergunta vamos visualizar a frequência de cada grupo alocado para avaliar uma reclamação.
+```{r freq_grupo_recla}
+reclamacoes <- reclamacoes %>%
+    rename("grupo" = "Grupo que vai avaliar")
+
+as.data.frame(table(reclamacoes$grupo)) %>% 
+    ggplot(aes(x = Var1, y = Freq, colour = as.factor(Freq))) +
+    geom_point() +
+    labs(x = "Grupo") +
+    guides(colour = FALSE)
+```
+Podemos observar que a alocação dos grupos foi justa, metade dos grupos ficaram com 8 reclamações e a outra metade com 7.
+
+
+### Existe consenso entre os avaliadores?
+
+Para responder essa pergunta vamos visualizar o boxplot das avaliações de cada reclamação.
+```{r consenso_aval}
+ggplot(avaliacoes, aes(x = id, y = insatisfacao, group = id)) + #, colour = as.factor(insatisfacao))) +
+    geom_boxplot() +
+    labs(x = "ID da reclamação",
+         y = "Grau de insatisfação",
+         colour = "insatisfação") +
+    #geom_jitter(size = 0.8) +
+    theme(axis.text.x = element_text(angle = 90))
+```
+Podemos observar que as reclamações com o boxplot extenso são as mais propensas à não possuírem consenso na avaliação. Para visualizar melhor quais são tais reclamações iremos plotar apenas as reclamações em que o 1º e o 3º quartil possuem uma diferença de pelo menos 2 graus.
+
+
