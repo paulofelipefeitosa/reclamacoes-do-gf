@@ -1,6 +1,8 @@
 ---
 title: "Análise exploratória de reclamações do Governo Federal"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -17,6 +19,8 @@ Os dados estão separados entre reclamações e avaliações. As avaliações fo
 ```{r results='hide'}
 reclamacoes <- read_csv("../data/1-reclamacoes-selecionadas/20190515-reclamacoes-selecionadas.csv")
 avaliacoes <- read_csv("../data/3-avaliacao-humana/avaliacoes20190515.csv")
+reclamacoes_avaliadas <- read_csv("../data/3-avaliacao-humana/reclamacoes-avaliadas-20190515.csv")
+
 ```
 
 ### Com que tipo de dados estamos trabalhando?
@@ -133,3 +137,56 @@ ggplot(avaliacoes, aes(x = id, y = insatisfacao, group = id)) + #, colour = as.f
 Podemos observar que as reclamações com o boxplot extenso são as mais propensas à não possuírem consenso na avaliação. Para visualizar melhor quais são tais reclamações iremos plotar apenas as reclamações em que o 1º e o 3º quartil possuem uma diferença de pelo menos 2 graus.
 
 
+### Reclamações selecionadas
+
+Quantas avaliações tiveram range 0?
+
+```{r}
+as.data.frame(table(reclamacoes_avaliadas$range.avaliacoes, dnn=list("Range")))  %>% filter(Range == 0)
+```
+
+Quantas avaliações tiveram range menor ou igual a 1?
+
+```{r}
+as.data.frame(table(reclamacoes_avaliadas$range.avaliacoes, dnn=list("Range")))  %>% filter(Range == 0 | Range == 1)
+```
+
+Houve uma insatisfação média de acordo com o grupo?
+
+```{r}
+x <- as.data.frame(table(reclamacoes_avaliadas$"Grupo que vai avaliar", reclamacoes_avaliadas$insatisfacao, dnn=list("grupo", "insatisfação média")))
+x[order(-x$Freq),]
+```
+
+Ranges de cada grupo
+
+```{r}
+y <- as.data.frame(table(reclamacoes_avaliadas$"Grupo que vai avaliar", reclamacoes_avaliadas$range.avaliacoes, dnn=list("Grupo", "Range"))) %>% filter(Freq > 0)
+y[order(-y$Freq),]
+```
+
+Houve alguma tendência de range de acordo com a insatisfação média?
+
+```{r}
+ggplot(reclamacoes_avaliadas, aes(x = insatisfacao, y = range.avaliacoes, colour = as.factor(range.avaliacoes))) +
+    geom_point(size = 0.8) +
+    labs(x = "insatisfacao",
+         y = "range",
+         colour = "range de avaliações") +
+    geom_jitter(size = 0.8) +
+    theme(axis.text.x = element_text(angle = 90))
+```
+Não, mas percebemos que o range 0 aparece apenas em avaliações que receberam nota 1, e que o maior range na avaliação feita (4) aparece apenas para avaliações com nota 2.5
+
+
+Quais foram as avaliações com range 0?
+
+```{r}
+as.data.frame(table(reclamacoes_avaliadas$id, reclamacoes_avaliadas$range.avaliacoes, reclamacoes_avaliadas$insatisfacao, dnn=list("ID", "Range", "insatisfação"))) %>% filter(Range == 0 & Freq > 0)
+```
+
+E quais foram as avaliações com range 4?
+
+```{r}
+as.data.frame(table(reclamacoes_avaliadas$id, reclamacoes_avaliadas$range.avaliacoes, reclamacoes_avaliadas$insatisfacao, dnn=list("ID", "Range", "insatisfação"))) %>% filter(Range == 4  & Freq > 0)
+```
