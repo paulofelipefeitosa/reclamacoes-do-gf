@@ -139,33 +139,33 @@ Podemos observar que as reclamações com o boxplot extenso são as mais propens
 
 ### Reclamações selecionadas
 
-Quantas avaliações tiveram range 0?
+#### Quantas avaliações tiveram range 0?
 
 ```{r}
 as.data.frame(table(reclamacoes_avaliadas$range.avaliacoes, dnn=list("Range")))  %>% filter(Range == 0)
 ```
 
-Quantas avaliações tiveram range menor ou igual a 1?
+#### Quantas avaliações tiveram range menor ou igual a 1?
 
 ```{r}
 as.data.frame(table(reclamacoes_avaliadas$range.avaliacoes, dnn=list("Range")))  %>% filter(Range == 0 | Range == 1)
 ```
 
-Houve uma insatisfação média de acordo com o grupo?
+#### Houve uma insatisfação média de acordo com o grupo?
 
 ```{r}
 x <- as.data.frame(table(reclamacoes_avaliadas$"Grupo que vai avaliar", reclamacoes_avaliadas$insatisfacao, dnn=list("grupo", "insatisfação média")))
 x[order(-x$Freq),]
 ```
 
-Ranges de cada grupo
+#### Ranges de cada grupo
 
 ```{r}
 y <- as.data.frame(table(reclamacoes_avaliadas$"Grupo que vai avaliar", reclamacoes_avaliadas$range.avaliacoes, dnn=list("Grupo", "Range"))) %>% filter(Freq > 0)
 y[order(-y$Freq),]
 ```
 
-Houve alguma tendência de range de acordo com a insatisfação média?
+#### Houve alguma tendência de range de acordo com a insatisfação média?
 
 ```{r}
 ggplot(reclamacoes_avaliadas, aes(x = insatisfacao, y = range.avaliacoes, colour = as.factor(range.avaliacoes))) +
@@ -179,14 +179,38 @@ ggplot(reclamacoes_avaliadas, aes(x = insatisfacao, y = range.avaliacoes, colour
 Não, mas percebemos que o range 0 aparece apenas em avaliações que receberam nota 1, e que o maior range na avaliação feita (4) aparece apenas para avaliações com nota 2.5
 
 
-Quais foram as avaliações com range 0?
+#### Quais foram as avaliações com range 0?
 
 ```{r}
 as.data.frame(table(reclamacoes_avaliadas$id, reclamacoes_avaliadas$range.avaliacoes, reclamacoes_avaliadas$insatisfacao, dnn=list("ID", "Range", "insatisfação"))) %>% filter(Range == 0 & Freq > 0)
 ```
 
-E quais foram as avaliações com range 4?
+#### E quais foram as avaliações com range 4?
 
 ```{r}
 as.data.frame(table(reclamacoes_avaliadas$id, reclamacoes_avaliadas$range.avaliacoes, reclamacoes_avaliadas$insatisfacao, dnn=list("ID", "Range", "insatisfação"))) %>% filter(Range == 4  & Freq > 0)
 ```
+
+#### Existe correlação entre o tamanho do comentário e o nível de insatisfação?
+```{r cor}
+avaliacoes <- avaliacoes %>%
+  select(id,insatisfacao) %>%
+  group_by(id) %>%
+  summarise(insatisfacao = median(insatisfacao))
+```
+Para analisar a insatisfação, usamos a mediana como parâmetro, já que a média pode ser facilmente alterada por uma avaliação maldosa.
+
+```{r corTexto}
+reclamacoes <- arrange(reclamacoes,id)
+tamTexto = nchar(reclamacoes$texto)
+cor(avaliacoes$insatisfacao,tamTexto)
+```
+
+Como podemos ver, o resultado da correlação foi proxima de 0, o que indica que aparentemente as 2 variáveis não possuem correlação
+
+#### Existe correlação entre o tamanho do título e o nível de insatisfação
+```{r corTitulo}
+tamTitulo = nchar(reclamacoes$titulo)
+cor(avaliacoes$insatisfacao,tamTitulo)
+```
+Novamente, correlação proxima de 0,  podemos afirmar que há indicios estátisticos que o tamanho do titulo não tem correlação com o grau de insatisfação do cliente
