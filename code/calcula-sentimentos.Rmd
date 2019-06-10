@@ -12,16 +12,11 @@ theme_set(theme_bw())
 ```
 
 ```{r carrega}
-reclamacoes_raw = read_csv(here("data/0-reclamacoes-raw/20180604-reclamacoes-raw.csv"))
+reclamacoes_raw = read_csv(here("data/1-reclamacoes-selecionadas/20190515-reclamacoes-selecionadas.csv"))
 
-reclamacoes = reclamacoes_raw %>% 
-    mutate(
-        nome_orgao_site = orgao,
-        orgao = str_split(link, "/") %>% map_chr(~ .[[5]])
-    ) %>% 
-    filter(orgao %in% c("stf-supremo-tribunal-federal", "anac-agencia-nacional-de-aviacao-civil")) %>% 
-    mutate(id = 1:n(), 
-           grupo_avaliando = id %% 6 + 1) 
+avaliacoes <- read_csv(here("data/3-avaliacao-humana/avaliacoes20190515.csv"))
+
+reclamacoes = reclamacoes_raw
 ```
 
 O processo de estimativa será muito baseado em https://sillasgonzaga.github.io/2017-09-23-sensacionalista-pt01/ . 
@@ -34,22 +29,46 @@ op30 <- oplexicon_v3.0
 sent <- sentiLex_lem_PT02
 
 glimpse(op30)
+
+glimpse(sent)
 ```
 
 Precisamos de um dataframe onde cada observação é uma palavra. 
 
 ```{r separa}
 palavra_a_palavra = reclamacoes %>% 
-    select(id, reclamacao) %>% 
-    unnest_tokens(termo, reclamacao)
+    select(id, texto) %>% 
+    unnest_tokens(termo, texto)
+
+palavra_a_palavra_titulo = reclamacoes %>% 
+    select(id, titulo) %>% 
+    unnest_tokens(termo, titulo)
 
 palavra_a_palavra %>%
   select(id, termo) %>%
   head(20)
 
+palavra_a_palavra_titulo %>%
+  select(id, termo) %>%
+  head(20)
+
 palavras_com_sentimento = palavra_a_palavra %>% 
   left_join(op30 %>% select(term, op30 = polarity), by = c("termo" = "term")) %>% 
+  left_join(sent %>% select(term, sent = polarity), by = c("termo" = "term"))
+
+palavras_titulo_com_sentimento = palavra_a_palavra_titulo %>% 
+  left_join(op30 %>% select(term, op30 = polarity), by = c("termo" = "term")) %>% 
   left_join(sent %>% select(term, sent = polarity), by = c("termo" = "term")) 
+```
+
+```{r calc_aval_rec}
+ravaliacoes <- avaliacoes %>%
+    rename("id" = "ID da reclamação",
+            "aval" = "Grau de insatisfação")
+
+aval_per_id <- ravaliacoes %>% 
+    group_by(id) %>%
+    summarise(m_aval = median(aval))
 ```
 
 Agora de fato calculamos qual a polaridade acumulada (via somatório) de cada reclamação e salvamos em um csv.
@@ -63,7 +82,25 @@ sentimentos = palavras_com_sentimento %>%
               palavras_sent = sum(!is.na(sent)), 
               palavras = n())
 
-sentimentos %>% 
+sentimentos_titulo = palavras_titulo_com_sentimento %>% 
+    group_by(id) %>%
+    summarise(sentimento_titulo_op30 = sum(op30, na.rm = TRUE),
+              palavras_titulo_op30 = sum(!is.na(op30)),
+              sentimento_titulo_sent = sum(sent, na.rm = TRUE), 
+              palavras_titulo_sent = sum(!is.na(sent)), 
+              palavras_titulo = n())
+
+all_sent <- merge(x=merge(x=sentimentos, 
+                          y=sentimentos_titulo, 
+                          by="id", 
+                          all = FALSE), 
+                  y=aval_per_id, by="id", all = FALSE)
+
+
+merge(x=sentimentos, y=aval_per_id, by="id", all=FALSE) %>% 
     write_csv(here("data/sentimentos/sentimento.csv"))
+all_sent %>% 
+    write_csv(here("data/sentimentos/sentimento-tt.csv"))
 ```
+
 
