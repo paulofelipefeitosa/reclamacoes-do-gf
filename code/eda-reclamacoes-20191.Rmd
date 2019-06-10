@@ -9,6 +9,7 @@ output:
 library(ggplot2)
 library(dplyr)
 library(tidyverse)
+library(stringr)
 theme_set(theme_bw())
 ```
 
@@ -70,7 +71,7 @@ Podemos observar que **Matrícula** e **ID da reclamação** são variáveis de 
 
 Primeiros vamos analisar a consistência dos valores de ID no conjunto de dados de reclamações e avaliações. Para reclamações vamos checar se não existe nenhum ID repetido.
 ```{r consistencia_valores_id_req}
-as.data.frame(table(reclamacoes$id)) %>% 
+as.data.frame(table(reclamacoes$id)) %>%
     ggplot(aes(x = Var1, y = Freq)) +
     geom_point() +
     labs(x = "ID da reclamação") +
@@ -80,11 +81,11 @@ Ou seja, os IDs das reclamações são consistentes, pois não existem IDs repet
 
 Para avaliações vamos checar se as avaliações foram de reclamações válidas, ou seja, com ID de 1 à 60.
 ```{r consistencia_valores_id_aval}
-avaliacoes <- avaliacoes %>% 
+avaliacoes <- avaliacoes %>%
     rename("id" = "ID da reclamação",
            "insatisfacao" = "Grau de insatisfação")
 
-as.data.frame(table(avaliacoes$id)) %>% 
+as.data.frame(table(avaliacoes$id)) %>%
     ggplot(aes(x = Var1, y = Freq, colour = as.factor(Freq))) +
     geom_point() +
     labs(x = "ID da reclamação") +
@@ -102,7 +103,7 @@ ggplot(avaliacoes, aes(x = id, y = insatisfacao, colour = as.factor(insatisfacao
          colour = "insatisfação") +
     geom_jitter(size = 0.8) +
     theme(axis.text.x = element_text(angle = 90))
-    
+
 ```
 Podemos observar que existem valores não válidos de insatisfação, os valores deveriam estar apenas entre 1 e 5, porém existem duas avaliações possuem o valor 6, ***o que nos leva a perguntar se o avaliador queria reforçar a grande insatisfação da reclamação ou se foi uma avaliação de "má fé"?***
 
@@ -113,7 +114,7 @@ Para responder esta pergunta vamos visualizar a frequência de cada grupo alocad
 reclamacoes <- reclamacoes %>%
     rename("grupo" = "Grupo que vai avaliar")
 
-as.data.frame(table(reclamacoes$grupo)) %>% 
+as.data.frame(table(reclamacoes$grupo)) %>%
     ggplot(aes(x = Var1, y = Freq, colour = as.factor(Freq))) +
     geom_point() +
     labs(x = "Grupo") +
@@ -191,26 +192,72 @@ as.data.frame(table(reclamacoes_avaliadas$id, reclamacoes_avaliadas$range.avalia
 as.data.frame(table(reclamacoes_avaliadas$id, reclamacoes_avaliadas$range.avaliacoes, reclamacoes_avaliadas$insatisfacao, dnn=list("ID", "Range", "insatisfação"))) %>% filter(Range == 4  & Freq > 0)
 ```
 
-#### Existe correlação entre o tamanho do comentário e o nível de insatisfação?
-```{r cor}
-avaliacoes <- avaliacoes %>%
-  select(id,insatisfacao) %>%
-  group_by(id) %>%
-  summarise(insatisfacao = median(insatisfacao))
-```
-Para analisar a insatisfação, usamos a mediana como parâmetro, já que a média pode ser facilmente alterada por uma avaliação maldosa.
+### Correlações entre Grau de Insatisfação e atributos do texto
 
-```{r corTexto}
-reclamacoes <- arrange(reclamacoes,id)
-tamTexto = nchar(reclamacoes$texto)
-cor(avaliacoes$insatisfacao,tamTexto)
+#### Existe correlação entre o tamanho do comentário e o nível de insatisfação?
+
+```{r corTamTexto}
+tamTexto = nchar(reclamacoes_avaliadas$texto)
+cor(reclamacoes_avaliadas$insatisfacao,tamTexto)
 ```
 
 Como podemos ver, o resultado da correlação foi proxima de 0, o que indica que aparentemente as 2 variáveis não possuem correlação
 
-#### Existe correlação entre o tamanho do título e o nível de insatisfação
-```{r corTitulo}
-tamTitulo = nchar(reclamacoes$titulo)
-cor(avaliacoes$insatisfacao,tamTitulo)
+#### Existe correlação entre o tamanho do título e o grau de insatisfação?
+
+```{r corTamTitulo}
+tamTitulo = nchar(reclamacoes_avaliadas$titulo)
+cor(reclamacoes_avaliadas$insatisfacao,tamTitulo)
 ```
 Novamente, correlação proxima de 0,  podemos afirmar que há indicios estátisticos que o tamanho do titulo não tem correlação com o grau de insatisfação do cliente
+
+#### Existe correlação entre o número de letras maiúsculas no texto e o grau de insatisfação?
+
+```{r corNumCapsTexto}
+numCapsTexto = str_count(reclamacoes_avaliadas$texto, "[A-Z]")
+cor(reclamacoes_avaliadas$insatisfacao,numCapsTexto)
+```
+A correlação foi próxima de 0, podemos afirmar que não possui correlação entre a quantidade de letras maiúsculas do texto e o grau de insatisfação
+
+#### Existe correlação entre o número de letras maiúsculas no título e o grau de insatisfação?
+'
+```{r corNumCapsTitulo}
+numCapsTitulo = str_count(reclamacoes_avaliadas$titulo, "[A-Z]")
+cor(reclamacoes_avaliadas$insatisfacao,numCapsTitulo)
+```
+Mais umas vez, a correlação foi próxima de 0, podemos afirmar que não possui correlação entre a quantidade de letras maiúsculas do título e o grau de insatisfação
+
+#### Existe correlação entre o percentual de letras maiúsculas no texto e o grau de insatisfação?
+
+```{r corPerCapsTexto}
+perCapsTexto = numCapsTexto / tamTexto
+cor(reclamacoes_avaliadas$insatisfacao,perCapsTexto)
+```
+Novamente, a correlação foi próxima de 0, podemos afirmar que não possui correlação entre o percentual de letras maiúsculas do texto e o grau de insatisfação
+
+#### Existe correlação entre o percentual de letras maiúsculas no título e o grau de insatisfação?
+
+```{r corPerCapsTitulo}
+perCapsTitulo = numCapsTitulo / tamTitulo
+cor(reclamacoes_avaliadas$insatisfacao,perCapsTitulo)
+```
+A correlação foi próxima de 0, podemos afirmar que não possui correlação entre o percentual de letras maiúsculas do título e o grau de insatisfação
+
+É possivel observar que em todos os casos a correlação foi baixa, a maior foi 0.21, no caso da correlação entre o tamanho do título e grau de insatisfação, mas ainda é considerado uma correlação baixa. Portanto, é possivel afirmar que o grau de insatisfação não possui relação nem com texto nem com o título
+
+### Existe correlação entre o Grau de Insatisfação e o órgão?
+
+```{r insatisfacaoOrgao}
+```
+
+### Datas das reclamações
+
+#### Existe algum periodo de tempo em que tivesse mais reclamações?
+
+```{r tempo}
+```
+
+#### Existe correlação entre o periodo de tempo e o grau da insatisfação?
+
+```{r insatisfacaoTempo}
+```
