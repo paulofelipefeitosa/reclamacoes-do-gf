@@ -7,6 +7,8 @@ output: html_document
 
 ```{r setup, include=FALSE}
 library(caret)
+library(here)
+theme_set(theme_bw())
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -27,20 +29,118 @@ Nosso conjunto de dados contém 60 observações referentes à cada reclamação
 11. **palavras_titulo** -- quantidade de palavras no **título da reclamação**.
 12. **m_aval** -- mediana das avaliações humanas do grau de insatisfação das reclamações.
 
+```{r read_data}
+observations <- read.csv(here("data/sentimentos/sentimento-tt.csv"))
+robservations <- read.csv(here("data/sentimentos/sentimento.csv"))
+```
+
+Existe desbalanceamento nos dados? Podemos observar que sim, talvez fosse melhor mudar a métrica de escolha da estimativa do grau de insatisfação, poderíamos ter dados mais balanceados.
+```{r eval_data}
+for (x in sort(unique(observations$m_aval))) {
+  soma = sum(observations$m_aval == x)
+  print(paste(x, soma))
+}
+```
+
 # Modelos
 
 ## Regressão Logística
 
+Para os dados com a análise de sentimento do título.
 ```{r modelo_regressao}
-summary(cars)
+control <- trainControl(method = 'cv', number = 5)
+regl <- train(m_aval ~ . -id,
+                            data = observations,
+                            method = "glm",
+                            #family = "binomial",
+                            trControl = control)
+regl
+
+print(varImp(regl, scale=FALSE))
+
+output <- subset(observations, select=c(id, m_aval))
+output$prediction <- predict(regl, observations)
+```
+
+Para os dados com a análise de sentimento do título.
+```{r modelo_regressao_nott}
+control <- trainControl(method = 'cv', number = 5)
+regl_tt <- train(m_aval ~ . -id,
+                            data = robservations,
+                            method = "glm",
+                            #family = "binomial",
+                            trControl = control)
+regl_tt
+
+print(varImp(regl_tt, scale=FALSE))
+
+output_tt <- subset(robservations, select=c(id, m_aval))
+output_tt$prediction <- predict(regl_tt, robservations)
 ```
 
 ## Árvore de Decisão
 
-You can also embed plots, for example:
+Dados com a análise de sentimento do título.
+```{r}
+trainC <- trainControl(method = 'cv', number = 5)
+treeDownACC <- caret::train(m_aval ~ . -id,
+                            data = observations, 
+                            method = "rpart",
+                            trControl = trainC)
+treeDownACC
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+print(varImp(treeDownACC, scale=FALSE))
+
+output_dt <- subset(observations, select=c(id, m_aval))
+output_dt$prediction <- predict(treeDownACC, observations)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Dados sem a análise de sentimento do título.
+```{r}
+trainC <- trainControl(method = 'cv', number = 5)
+treeDownACC <- caret::train(m_aval ~ . -id,
+                            data = robservations, 
+                            method = "rpart",
+                            trControl = trainC)
+treeDownACC
+
+print(varImp(treeDownACC, scale=FALSE))
+
+output_dt_tt <- subset(robservations, select=c(id, m_aval))
+output_dt_tt$prediction <- predict(treeDownACC, robservations)
+```
+
+## Árvore de Decisão - Adaboost
+
+Dados com a análise de sentimento do título.
+```{r}
+trainC <- trainControl(method = 'cv', number = 3)
+adaBoostUpACC <- caret::train(m_aval ~ . - id,
+                             data = observations,
+                             method = 'adaboost',
+                             trControl = trainC)
+adaBoostUpACC
+
+print(varImp(adaBoostUpACC, scale=FALSE))
+
+output_adb <- subset(observations, select=c(id, m_aval))
+output_adb$prediction <- predict(adaBoostUpACC, observations)
+```
+
+Dados sem a análise de sentimento do título.
+```{r}
+trainC <- trainControl(method = 'cv', number = 5)
+treeDownACC <- caret::train(m_aval ~ . -id,
+                            data = robservations, 
+                            method = "rpart",
+                            trControl = trainC)
+treeDownACC
+
+print(varImp(treeDownACC, scale=FALSE))
+
+output_adb_tt <- subset(robservations, select=c(id, m_aval))
+output_adb_tt$prediction <- predict(treeDownACC, robservations)
+```
+
+
+## Redes Neurais
