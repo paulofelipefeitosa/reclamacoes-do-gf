@@ -248,7 +248,50 @@ A correlação foi próxima de 0, podemos afirmar que não possui correlação e
 ### Existe correlação entre o Grau de Insatisfação e o órgão?
 
 ```{r insatisfacaoOrgao}
+
 ```
+
+## Regredindo
+
+```{r}
+plot(perCapsTexto, reclamacoes_avaliadas$insatisfacao)
+linha = lm((reclamacoes_avaliadas$insatisfacao)~perCapsTexto)
+abline(linha, col="green")
+```
+```{r}
+plot(perCapsTitulo, reclamacoes_avaliadas$insatisfacao)
+linha = lm((reclamacoes_avaliadas$insatisfacao)~perCapsTitulo)
+abline(linha, col="green")
+```
+```{r}
+plot(numCapsTexto, reclamacoes_avaliadas$insatisfacao)
+linha = lm((reclamacoes_avaliadas$insatisfacao)~numCapsTexto)
+abline(linha, col="green")
+```
+```{r}
+plot(numCapsTitulo, reclamacoes_avaliadas$insatisfacao)
+linha = lm((reclamacoes_avaliadas$insatisfacao)~numCapsTitulo)
+abline(linha, col="green")
+```
+
+```{r}
+x <- as.data.frame(table(reclamacoes_avaliadas$orgao, reclamacoes_avaliadas$insatisfacao, dnn=list("orgao", "insatisfacao"))) %>% filter(orgao == "ANATEL")
+x[order(-x$Freq),]
+plot(x$Freq, x$insatisfacao)
+linha = lm(x$insatisfacao~x$Freq)
+abline(linha, col="green")
+
+```
+```{r}
+x <- as.data.frame(table(reclamacoes_avaliadas$orgao, reclamacoes_avaliadas$insatisfacao, dnn=list("orgao", "insatisfacao"))) %>% filter(orgao == "ANS")
+x[order(-x$Freq),]
+x$Freq
+x$insatisfacao
+plot(x$insatisfacao, x$Freq)
+linha = lm(x$Freq~x$insatisfacao)
+abline(linha, col="green")
+```
+
 
 ### Datas das reclamações
 
