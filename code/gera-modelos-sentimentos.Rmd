@@ -8,6 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 library(caret)
 library(here)
+library(tidyverse)
 theme_set(theme_bw())
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -42,40 +43,87 @@ for (x in sort(unique(observations$m_aval))) {
 }
 ```
 
+```{r}
+mean_feel <- function(senti, words) {
+    values <- (senti/words)
+    return (replace(values, is.na(values), 0))
+}
+op30 <- robservations %>%
+    select(id, sentimento_op30, palavras_op30, palavras, m_aval) %>%
+    rename(sentimento = sentimento_op30,
+           palavras_texto = palavras,
+           palavras_lexico = palavras_op30) %>%
+    mutate(mean_sent_per_word = mean_feel(sentimento, palavras_lexico))
+sent <- robservations %>%
+    select(id, sentimento_sent, palavras_sent, palavras, m_aval) %>%
+    rename(sentimento = sentimento_sent,
+           palavras_texto = palavras,
+           palavras_lexico = palavras_sent) %>%
+    mutate(mean_sent_per_word = mean_feel(sentimento, palavras_lexico))
+
+op30$Type <- "op30"
+sent$Type <- "sent"
+
+union <- rbind(op30, sent)
+```
+
+```{r}
+ggplot(union, aes(x = m_aval, y = sentimento)) +
+    geom_point() +
+    labs(x = "Grau de insatisfação da reclamação",
+         y = "Sentimento estimado da reclamação") + 
+    scale_y_continuous(limits = c(-10, 30)) + 
+    facet_wrap(Type ~ .) +
+    geom_smooth(method = "glm")
+
+cor(op30$m_aval, op30$sentimento)
+cor(sent$m_aval, sent$sentimento)
+
+ggplot(union, aes(x = m_aval, y = mean_sent_per_word)) +
+    geom_point() + 
+    labs(x = "Grau de insatisfação da reclamação",
+         y = "Média do sentimento dos léxicos da reclamação") + 
+    scale_y_continuous(limits = c(-1, 1)) + 
+    facet_wrap(Type ~ .) +
+    geom_smooth(method = "glm")
+
+cor(op30$m_aval, op30$mean_sent_per_word)
+cor(sent$m_aval, sent$mean_sent_per_word)
+```
+
+
 # Modelos
 
 ## Regressão Logística
 
-Para os dados com a análise de sentimento do título.
+Para os dados com a análise de sentimento do texto das reclamações utilizando op30.
 ```{r modelo_regressao}
 control <- trainControl(method = 'cv', number = 5)
 regl <- train(m_aval ~ . -id,
-                            data = observations,
+                            data = op30,
                             method = "glm",
-                            #family = "binomial",
                             trControl = control)
 regl
 
 print(varImp(regl, scale=FALSE))
 
-output <- subset(observations, select=c(id, m_aval))
-output$prediction <- predict(regl, observations)
+pred_op30 <- subset(op30, select=c(id, m_aval))
+pred_op30$prediction <- predict(regl, op30)
 ```
 
-Para os dados com a análise de sentimento do título.
-```{r modelo_regressao_nott}
+Para os dados com a análise de sentimento do texto das reclamações utilizando sent.
+```{r modelo_regressao}
 control <- trainControl(method = 'cv', number = 5)
-regl_tt <- train(m_aval ~ . -id,
-                            data = robservations,
+regl <- train(m_aval ~ . -id,
+                            data = sent,
                             method = "glm",
-                            #family = "binomial",
                             trControl = control)
-regl_tt
+regl
 
-print(varImp(regl_tt, scale=FALSE))
+print(varImp(regl, scale=FALSE))
 
-output_tt <- subset(robservations, select=c(id, m_aval))
-output_tt$prediction <- predict(regl_tt, robservations)
+pred_sent <- subset(sent, select=c(id, m_aval))
+pred_sent$prediction <- predict(regl, sent)
 ```
 
 ## Árvore de Decisão
