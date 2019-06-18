@@ -1,0 +1,194 @@
+---
+title: "Quão eficazes são os métodos de análise de sentimento baseados em léxicos para estimar o nível de insatisfação de reclamações recebidas pelo ReclameAqui do governo federal?"
+author: "Paulo Feitosa"
+date: "June 10, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(caret)
+library(here)
+library(tidyverse)
+theme_set(theme_bw())
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Dados
+
+Nosso conjunto de dados contém 60 observações referentes à cada reclamação com os seguintes atributos:
+
+1. **id** -- ID da reclamação.
+2. **sentimento_op30** -- valor da análise dos léxicos do **texto da reclamação** com o *dataset oplexicon_v3.0*.
+3. **palavras_op30** -- quantidade de palavras no **texto da reclamação** avaliadas pelo *dataset oplexicon_v3.0*. 
+4. **sentimento_sent** -- valor da análise dos léxicos do **texto da reclamação** com o *dataset sentiLex_lem_PT02*.
+5. **palavras_sent** -- quantidade de palavras no **texto da reclamação** avaliadas pelo *dataset sentiLex_lem_PT02*.
+6. **palavras** -- quantidade de palavras no **texto da reclamação**.
+7. **sentimento_titulo_op30** -- valor da análise dos léxicos do **título da reclamação** com o *dataset oplexicon_v3.0*.
+8. **palavras_titulo_op30** -- quantidade de palavras no **título da reclamação** avaliadas pelo *dataset oplexicon_v3.0*.
+9. **sentimento_titulo_sent** -- valor da análise dos léxicos do **título da reclamação** com o *dataset sentiLex_lem_PT02*. 
+10. **palavras_titulo_sent** -- quantidade de palavras no **título da reclamação** avaliadas pelo *dataset sentiLex_lem_PT02*.
+11. **palavras_titulo** -- quantidade de palavras no **título da reclamação**.
+12. **m_aval** -- mediana das avaliações humanas do grau de insatisfação das reclamações.
+
+```{r read_data}
+observations <- read.csv(here("data/sentimentos/sentimento-tt.csv"))
+robservations <- read.csv(here("data/sentimentos/sentimento.csv"))
+```
+
+Existe desbalanceamento nos dados? Podemos observar que sim, talvez fosse melhor mudar a métrica de escolha da estimativa do grau de insatisfação, poderíamos ter dados mais balanceados.
+```{r eval_data}
+for (x in sort(unique(observations$m_aval))) {
+  soma = sum(observations$m_aval == x)
+  print(paste(x, soma))
+}
+```
+
+```{r}
+mean_feel <- function(senti, words) {
+    values <- (senti/words)
+    return (replace(values, is.na(values), 0))
+}
+op30 <- robservations %>%
+    select(id, sentimento_op30, palavras_op30, palavras, m_aval) %>%
+    rename(sentimento = sentimento_op30,
+           palavras_texto = palavras,
+           palavras_lexico = palavras_op30) %>%
+    mutate(mean_sent_per_word = mean_feel(sentimento, palavras_lexico))
+sent <- robservations %>%
+    select(id, sentimento_sent, palavras_sent, palavras, m_aval) %>%
+    rename(sentimento = sentimento_sent,
+           palavras_texto = palavras,
+           palavras_lexico = palavras_sent) %>%
+    mutate(mean_sent_per_word = mean_feel(sentimento, palavras_lexico))
+
+op30$Type <- "op30"
+sent$Type <- "sent"
+
+union <- rbind(op30, sent)
+```
+
+```{r}
+ggplot(union, aes(x = m_aval, y = sentimento)) +
+    geom_point() +
+    labs(x = "Grau de insatisfação da reclamação",
+         y = "Sentimento estimado da reclamação") + 
+    scale_y_continuous(limits = c(-10, 30)) + 
+    facet_wrap(Type ~ .) +
+    geom_smooth(method = "glm")
+
+cor(op30$m_aval, op30$sentimento)
+cor(sent$m_aval, sent$sentimento)
+
+ggplot(union, aes(x = m_aval, y = mean_sent_per_word)) +
+    geom_point() + 
+    labs(x = "Grau de insatisfação da reclamação",
+         y = "Média do sentimento dos léxicos da reclamação") + 
+    scale_y_continuous(limits = c(-1, 1)) + 
+    facet_wrap(Type ~ .) +
+    geom_smooth(method = "glm")
+
+cor(op30$m_aval, op30$mean_sent_per_word)
+cor(sent$m_aval, sent$mean_sent_per_word)
+```
+
+
+# Modelos
+
+## Regressão Logística
+
+Para os dados com a análise de sentimento do texto das reclamações utilizando op30.
+```{r modelo_regressao}
+control <- trainControl(method = 'cv', number = 5)
+regl <- train(m_aval ~ . -id,
+                            data = op30,
+                            method = "glm",
+                            trControl = control)
+regl
+
+print(varImp(regl, scale=FALSE))
+
+pred_op30 <- subset(op30, select=c(id, m_aval))
+pred_op30$prediction <- predict(regl, op30)
+```
+
+Para os dados com a análise de sentimento do texto das reclamações utilizando sent.
+```{r modelo_regressao}
+control <- trainControl(method = 'cv', number = 5)
+regl <- train(m_aval ~ . -id,
+                            data = sent,
+                            method = "glm",
+                            trControl = control)
+regl
+
+print(varImp(regl, scale=FALSE))
+
+pred_sent <- subset(sent, select=c(id, m_aval))
+pred_sent$prediction <- predict(regl, sent)
+```
+
+## Árvore de Decisão
+
+Dados com a análise de sentimento do título.
+```{r}
+trainC <- trainControl(method = 'cv', number = 5)
+treeDownACC <- caret::train(m_aval ~ . -id,
+                            data = observations, 
+                            method = "rpart",
+                            trControl = trainC)
+treeDownACC
+
+print(varImp(treeDownACC, scale=FALSE))
+
+output_dt <- subset(observations, select=c(id, m_aval))
+output_dt$prediction <- predict(treeDownACC, observations)
+```
+
+Dados sem a análise de sentimento do título.
+```{r}
+trainC <- trainControl(method = 'cv', number = 5)
+treeDownACC <- caret::train(m_aval ~ . -id,
+                            data = robservations, 
+                            method = "rpart",
+                            trControl = trainC)
+treeDownACC
+
+print(varImp(treeDownACC, scale=FALSE))
+
+output_dt_tt <- subset(robservations, select=c(id, m_aval))
+output_dt_tt$prediction <- predict(treeDownACC, robservations)
+```
+
+## Árvore de Decisão - Adaboost
+
+Dados com a análise de sentimento do título.
+```{r}
+trainC <- trainControl(method = 'cv', number = 3)
+adaBoostUpACC <- caret::train(m_aval ~ . - id,
+                             data = observations,
+                             method = 'adaboost',
+                             trControl = trainC)
+adaBoostUpACC
+
+print(varImp(adaBoostUpACC, scale=FALSE))
+
+output_adb <- subset(observations, select=c(id, m_aval))
+output_adb$prediction <- predict(adaBoostUpACC, observations)
+```
+
+Dados sem a análise de sentimento do título.
+```{r}
+trainC <- trainControl(method = 'cv', number = 5)
+treeDownACC <- caret::train(m_aval ~ . -id,
+                            data = robservations, 
+                            method = "rpart",
+                            trControl = trainC)
+treeDownACC
+
+print(varImp(treeDownACC, scale=FALSE))
+
+output_adb_tt <- subset(robservations, select=c(id, m_aval))
+output_adb_tt$prediction <- predict(treeDownACC, robservations)
+```
+
+
+## Redes Neurais
