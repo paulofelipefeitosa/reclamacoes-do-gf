@@ -56,6 +56,7 @@ Apesar da **Data** da reclamação ter um formato textual, podemos transformá-l
 glimpse(avaliacoes)
 
 summary(avaliacoes)
+
 ```
 Temos 316 avaliações de reclamações que possuem 3 variáveis de interesse:
 
@@ -92,6 +93,7 @@ as.data.frame(table(avaliacoes$id)) %>%
     theme(axis.text.x = element_text(angle = 90)) +
     guides(colour = FALSE)
 ```
+
 Ou seja, podemos observar que o ID das avaliações só possuem valores permitidos, de 1 à 60. Além disso, cada reclamação foi avaliada por pelo menos 3 pessoas e por no máximo 6.
 
 Em seguida, vamos analisar a consistência dos valores do grau de insatisfação das avaliações por reclamação.
@@ -105,6 +107,7 @@ ggplot(avaliacoes, aes(x = id, y = insatisfacao, colour = as.factor(insatisfacao
     theme(axis.text.x = element_text(angle = 90))
 
 ```
+
 Podemos observar que existem valores não válidos de insatisfação, os valores deveriam estar apenas entre 1 e 5, porém existem duas avaliações possuem o valor 6, ***o que nos leva a perguntar se o avaliador queria reforçar a grande insatisfação da reclamação ou se foi uma avaliação de "má fé"?***
 
 ### A alocação de grupos para avaliar as reclamações foi justa?
@@ -120,6 +123,7 @@ as.data.frame(table(reclamacoes$grupo)) %>%
     labs(x = "Grupo") +
     guides(colour = FALSE)
 ```
+
 Podemos observar que a alocação dos grupos foi justa, metade dos grupos ficaram com 8 reclamações e a outra metade com 7.
 
 
@@ -127,15 +131,82 @@ Podemos observar que a alocação dos grupos foi justa, metade dos grupos ficara
 
 Para responder essa pergunta vamos visualizar o boxplot das avaliações de cada reclamação.
 ```{r consenso_aval}
-ggplot(avaliacoes, aes(x = id, y = insatisfacao, group = id)) + #, colour = as.factor(insatisfacao))) +
-    geom_boxplot() +
+p25i <- avaliacoes %>%
+            group_by(id) %>%
+            summarise(insatisfacao = quantile(insatisfacao, c(0.25)),
+                      type = "p25")
+p75i <- avaliacoes %>%
+            group_by(id) %>%
+            summarise(insatisfacao = quantile(insatisfacao, c(0.75)),
+                      type = "p75")
+
+ggplot(rbind(p25i, p75i), aes(x = id, y = insatisfacao)) +
+    geom_point(aes(colour = type)) +
+    geom_line(aes(group = id)) +
     labs(x = "ID da reclamação",
-         y = "Grau de insatisfação",
-         colour = "insatisfação") +
-    #geom_jitter(size = 0.8) +
+         y = "Grau de insatisfação") +
+    scale_y_continuous(limits = c(1, 5), breaks = c(1:5)) + 
+    scale_x_continuous(limits = c(1, 60), breaks = c(1:60)) +
     theme(axis.text.x = element_text(angle = 90))
+
+heatmap_df <- avaliacoes %>%
+    group_by(id, insatisfacao) %>%
+    summarise(prob = length(insatisfacao)/length(which(avaliacoes$id == id)))
+
+new_hm_df <- data.frame(id = heatmap_df$id, 
+                        insatisfacao = heatmap_df$insatisfacao, 
+                        prob = heatmap_df$prob, 
+                        stringsAsFactors = FALSE)
+for(i in c(1:60)) {
+    for(j in c(1:5)) {
+        if(length(which(heatmap_df$id == i & heatmap_df$insatisfacao == j)) == 0) {
+            new_hm_df <- rbind(new_hm_df, 
+                               data.frame(id = i, 
+                                          insatisfacao = j, 
+                                          prob = 0, 
+                                          stringsAsFactors = FALSE))
+        }
+    }
+}
+
+
+heat_plot <- new_hm_df[which(new_hm_df$insatisfacao != 6), ] %>%
+    ggplot(aes(x = insatisfacao, y = id)) +
+    geom_tile(aes(fill = prob), colour = "white") +
+    labs(x = "Grau de insatisfação",
+         y = "ID da reclamação",
+         fill = "Frequência") +
+    scale_fill_gradient2(low = "white", 
+                         high = "red",
+                         mid = "white", 
+                         midpoint = 0.5) +
+    #scale_y_continuous(limits = c(1, 60)) + 
+    theme(panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank())
+
+heat_plot
+
+length(which(new_hm_df$prob >= 0.9))
+length(which(new_hm_df$prob >= 0.8))
+length(which(new_hm_df$prob >= 0.7))
+length(which(new_hm_df$prob >= 0.6))
+length(which(new_hm_df$prob > 0.5))
+length(unique(new_hm_df$id))
+
+ggsave("../resultados/heatmap_median_plot.png", heat_plot)
 ```
+
 Podemos observar que as reclamações com o boxplot extenso são as mais propensas à não possuírem consenso na avaliação. Para visualizar melhor quais são tais reclamações iremos plotar apenas as reclamações em que o 1º e o 3º quartil possuem uma diferença de pelo menos 2 graus.
+
+### Quantos avaliadores foram alocados por grupo?
+
+```{r}
+merged_data <- merge(reclamacoes, avaliacoes, by.x = "id", by.y = "id")
+
+merged_data %>%
+    group_by(grupo) %>%
+    summarise(cnt = length(unique(Matricula)))
+```
 
 
 ### Reclamações selecionadas
