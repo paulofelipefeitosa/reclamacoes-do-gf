@@ -68,27 +68,49 @@ union <- rbind(op30, sent)
 ```
 
 ```{r}
-ggplot(union, aes(x = m_aval, y = sentimento)) +
+sum_feel <- ggplot(union[which(union$sentimento < 20),], aes(x = sentimento, y = m_aval)) +
     geom_point() +
-    labs(x = "Grau de insatisfação da reclamação",
-         y = "Sentimento estimado da reclamação") + 
-    scale_y_continuous(limits = c(-10, 30)) + 
+    labs(x = "Sentimento estimado da reclamação",
+         y = "Grau de insatisfação da reclamação") + 
+    scale_x_continuous(limits = c(-10, 15)) + 
+    scale_y_continuous(limits = c(1, 5), breaks = c(1:5)) + 
     facet_wrap(Type ~ .) +
-    geom_smooth(method = "glm")
+    geom_smooth(formula = y ~ x)
+
+sum_feel
+
+ggsave("../resultados/points-sum-feel.png", sum_feel)
 
 cor(op30$m_aval, op30$sentimento)
 cor(sent$m_aval, sent$sentimento)
 
-ggplot(union, aes(x = m_aval, y = mean_sent_per_word)) +
+mean_feel <- ggplot(union[which(union$mean_sent_per_word > -0.52),], aes(x = mean_sent_per_word, y = m_aval )) +
     geom_point() + 
-    labs(x = "Grau de insatisfação da reclamação",
-         y = "Média do sentimento dos léxicos da reclamação") + 
-    scale_y_continuous(limits = c(-1, 1)) + 
+    labs(x = "Média do sentimento dos léxicos da reclamação",
+         y = "Grau de insatisfação da reclamação") + 
+    scale_x_continuous(limits = c(-1, 1)) + 
+    scale_y_continuous(limits = c(1, 5), breaks = c(1:5)) + 
     facet_wrap(Type ~ .) +
-    geom_smooth(method = "glm")
+    geom_smooth(formula = y ~ x)
+
+mean_feel
+
+ggsave("../resultados/points-mean-feel.png", mean_feel)
 
 cor(op30$m_aval, op30$mean_sent_per_word)
 cor(sent$m_aval, sent$mean_sent_per_word)
+
+ggplot(observations, aes(x = m_aval)) +
+     geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   binwidth=.5,
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666") +  # Overlay with transparent density plot
+    geom_vline(aes(xintercept=mean(m_aval, na.rm=T)),   # Ignore NA values for mean
+               color="red", linetype="dashed", size=1) +
+    geom_vline(aes(xintercept=median(m_aval, na.rm=T)),   # Ignore NA values for mean
+               color="blue", linetype="dashed", size=1) +
+    labs(x = "Grau de insatisfação",
+         y = "Densidade de probabilidade")
 ```
 
 
