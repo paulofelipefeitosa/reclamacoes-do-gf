@@ -1,6 +1,8 @@
 ---
 title: "Análise da precisão"
-output: html_notebook
+output:
+  pdf_document: default
+  html_notebook: default
 ---
 
 ```{r}
@@ -15,8 +17,8 @@ theme_set(theme_bw())
 ## Os dados
 
 ```{r carrega}
-reclamacoes_raw = read_csv(here("data/reclamacoes-raw/reclamacoes-raw.csv"))
-avaliacoes_raw = read_csv(here("data/avaliacoes/avaliacoes-20180222.csv"))
+reclamacoes_raw = read_csv(here("data/0-reclamacoes-raw/20180604-reclamacoes-raw.csv"))
+avaliacoes_raw = read_csv(here("data/3-avaliacao-humana/avaliacoes-20180222.csv"))
 sentimentos = read_csv(here("data/sentimentos/sentimento.csv"))
 
 reclamacoes_raw = reclamacoes_raw %>% 

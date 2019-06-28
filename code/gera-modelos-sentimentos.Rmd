@@ -9,6 +9,7 @@ output: html_document
 library(caret)
 library(here)
 library(tidyverse)
+library(pracma)
 theme_set(theme_bw())
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -113,6 +114,59 @@ ggplot(observations, aes(x = m_aval)) +
          y = "Densidade de probabilidade")
 ```
 
+# Normalização
+
+## Média dos léxicos
+
+### Normaliza
+
+```{r}
+mean_lex <- union %>%
+    group_by(id, Type) %>%
+    summarise(real_gi = m_aval,
+              pred_gi = (1 - sigmoid(mean_sent_per_word, a = 1.5, b = 0))*5 + 0.3,
+              nosig = mean_sent_per_word)
+```
+
+### Calcula erro
+```{r}
+mean_lex <- mean_lex %>% 
+    mutate(erro = (real_gi - pred_gi)**2)
+
+ModelMetrics::rmse(mean_lex[which(mean_lex$Type == "op30"), ]$real_gi, mean_lex[which(mean_lex$Type == "op30"), ]$pred_gi)
+
+ModelMetrics::rmse(mean_lex[which(mean_lex$Type == "sent"), ]$real_gi, mean_lex[which(mean_lex$Type == "sent"), ]$pred_gi)
+```
+
+### Gera plots
+
+```{r}
+error_meanlex_plot <- mean_lex %>% 
+    ggplot(aes(x = real_gi, y = erro, group = real_gi)) + 
+    geom_point() +
+    geom_jitter(alpha = .5)  +
+    labs(x = "Grau de insatisfação",
+         y = "Erro") +
+    facet_wrap(~ Type)
+
+error_meanlex_plot
+
+ggsave("../resultados/error-mean-lex-points.png", error_meanlex_plot)
+
+norm_func_meanlex_plot <- mean_lex %>% 
+    ggplot(aes(x = nosig, y = pred_gi)) + 
+    geom_point() +
+    #geom_jitter(alpha = .5)  +
+    scale_y_continuous(limits = c(1, 5), breaks = c(1:5)) + 
+    labs(x = "Média Lexicos",
+         y = "Pred GI") +
+    facet_wrap(~ Type)
+
+norm_func_meanlex_plot
+
+ggsave("../resultados/norm-func-mean-lex-points.png", norm_func_meanlex_plot)
+```
+
 
 # Modelos
 
@@ -121,10 +175,10 @@ ggplot(observations, aes(x = m_aval)) +
 Para os dados com a análise de sentimento do texto das reclamações utilizando op30.
 ```{r modelo_regressao}
 control <- trainControl(method = 'cv', number = 5)
-regl <- train(m_aval ~ . -id,
-                            data = op30,
-                            method = "glm",
-                            trControl = control)
+regl <- train(m_aval ~ .,
+              data = subset(op30, select = -c(id, Type)),
+              method = "glm",
+              trControl = control)
 regl
 
 print(varImp(regl, scale=FALSE))
@@ -136,8 +190,8 @@ pred_op30$prediction <- predict(regl, op30)
 Para os dados com a análise de sentimento do texto das reclamações utilizando sent.
 ```{r modelo_regressao}
 control <- trainControl(method = 'cv', number = 5)
-regl <- train(m_aval ~ . -id,
-                            data = sent,
+regl <- train(m_aval ~ .,
+                            data = subset(sent, select = -c(id, Type)),
                             method = "glm",
                             trControl = control)
 regl
@@ -147,70 +201,3 @@ print(varImp(regl, scale=FALSE))
 pred_sent <- subset(sent, select=c(id, m_aval))
 pred_sent$prediction <- predict(regl, sent)
 ```
-
-## Árvore de Decisão
-
-Dados com a análise de sentimento do título.
-```{r}
-trainC <- trainControl(method = 'cv', number = 5)
-treeDownACC <- caret::train(m_aval ~ . -id,
-                            data = observations, 
-                            method = "rpart",
-                            trControl = trainC)
-treeDownACC
-
-print(varImp(treeDownACC, scale=FALSE))
-
-output_dt <- subset(observations, select=c(id, m_aval))
-output_dt$prediction <- predict(treeDownACC, observations)
-```
-
-Dados sem a análise de sentimento do título.
-```{r}
-trainC <- trainControl(method = 'cv', number = 5)
-treeDownACC <- caret::train(m_aval ~ . -id,
-                            data = robservations, 
-                            method = "rpart",
-                            trControl = trainC)
-treeDownACC
-
-print(varImp(treeDownACC, scale=FALSE))
-
-output_dt_tt <- subset(robservations, select=c(id, m_aval))
-output_dt_tt$prediction <- predict(treeDownACC, robservations)
-```
-
-## Árvore de Decisão - Adaboost
-
-Dados com a análise de sentimento do título.
-```{r}
-trainC <- trainControl(method = 'cv', number = 3)
-adaBoostUpACC <- caret::train(m_aval ~ . - id,
-                             data = observations,
-                             method = 'adaboost',
-                             trControl = trainC)
-adaBoostUpACC
-
-print(varImp(adaBoostUpACC, scale=FALSE))
-
-output_adb <- subset(observations, select=c(id, m_aval))
-output_adb$prediction <- predict(adaBoostUpACC, observations)
-```
-
-Dados sem a análise de sentimento do título.
-```{r}
-trainC <- trainControl(method = 'cv', number = 5)
-treeDownACC <- caret::train(m_aval ~ . -id,
-                            data = robservations, 
-                            method = "rpart",
-                            trControl = trainC)
-treeDownACC
-
-print(varImp(treeDownACC, scale=FALSE))
-
-output_adb_tt <- subset(robservations, select=c(id, m_aval))
-output_adb_tt$prediction <- predict(treeDownACC, robservations)
-```
-
-
-## Redes Neurais
