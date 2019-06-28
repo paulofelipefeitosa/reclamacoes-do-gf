@@ -1,0 +1,276 @@
+---
+title: "Análise exploratória de reclamações do Governo Federal"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(stringr)
+library(plyr)
+theme_set(theme_bw())
+```
+
+Nosso objetivo é realizar a análise exploratória de reclamações do governo federal submetidas no site [reclame aqui](https://www.reclameaqui.com.br/), as reclamações são sobre a ANS e ANATEL.
+
+## Lendo os dados
+Os dados estão separados entre reclamações e avaliações. As avaliações foram realizadas através de um experimento humano para avaliar o grau de insatisfação de cada reclamação.
+```{r results='hide'}
+reclamacoes <- read_csv("../data/1-reclamacoes-selecionadas/20190515-reclamacoes-selecionadas.csv")
+avaliacoes <- read_csv("../data/3-avaliacao-humana/avaliacoes20190515.csv")
+reclamacoes_avaliadas <- read_csv("../data/3-avaliacao-humana/reclamacoes-avaliadas-20190515.csv")
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+```
+
+### Com que tipo de dados estamos trabalhando?
+
+
+
+### Reclamações selecionadas
+
+#### Quantas avaliações tiveram range 0?
+
+```{r}
+as.data.frame(table(reclamacoes_avaliadas$range.avaliacoes, dnn=list("Range")))  %>% filter(Range == 0)
+```
+
+#### Quantas avaliações tiveram range menor ou igual a 1?
+
+```{r}
+as.data.frame(table(reclamacoes_avaliadas$range.avaliacoes, dnn=list("Range")))  %>% filter(Range == 0 | Range == 1)
+```
+
+#### Houve uma insatisfação média de acordo com o grupo?
+
+```{r}
+x <- as.data.frame(table(reclamacoes_avaliadas$"Grupo que vai avaliar", reclamacoes_avaliadas$insatisfacao, dnn=list("grupo", "insatisfação média")))
+x[order(-x$Freq),]
+```
+
+#### Ranges de cada grupo
+
+```{r}
+y <- as.data.frame(table(reclamacoes_avaliadas$"Grupo que vai avaliar", reclamacoes_avaliadas$range.avaliacoes, dnn=list("Grupo", "Range"))) %>% filter(Freq > 0)
+y[order(-y$Freq),]
+```
+
+#### Houve alguma tendência de range de acordo com a insatisfação média?
+
+```{r}
+ggplot(reclamacoes_avaliadas, aes(x = insatisfacao, y = range.avaliacoes, colour = as.factor(range.avaliacoes))) +
+    geom_point(size = 0.8) +
+    labs(x = "insatisfacao",
+         y = "range",
+         colour = "range de avaliações") +
+    geom_jitter(size = 0.8) +
+    theme(axis.text.x = element_text(angle = 90))
+```
+Não, mas percebemos que o range 0 aparece apenas em avaliações que receberam nota 1, e que o maior range na avaliação feita (4) aparece apenas para avaliações com nota 2.5
+
+
+#### Quais foram as avaliações com range 0?
+
+```{r}
+as.data.frame(table(reclamacoes_avaliadas$id, reclamacoes_avaliadas$range.avaliacoes, reclamacoes_avaliadas$insatisfacao, dnn=list("ID", "Range", "insatisfação"))) %>% filter(Range == 0 & Freq > 0)
+```
+
+#### E quais foram as avaliações com range 4?
+
+```{r}
+as.data.frame(table(reclamacoes_avaliadas$id, reclamacoes_avaliadas$range.avaliacoes, reclamacoes_avaliadas$insatisfacao, dnn=list("ID", "Range", "insatisfação"))) %>% filter(Range == 4  & Freq > 0)
+```
+
+### Correlações entre Grau de Insatisfação e atributos do texto
+
+#### Existe correlação entre o tamanho do comentário e o nível de insatisfação?
+
+```{r corTamTexto}
+tamTexto = nchar(reclamacoes_avaliadas$texto)
+cor(reclamacoes_avaliadas$insatisfacao,tamTexto)
+```
+
+Como podemos ver, o resultado da correlação foi proxima de 0, o que indica que aparentemente as 2 variáveis não possuem correlação
+
+#### Existe correlação entre o tamanho do título e o grau de insatisfação?
+
+```{r corTamTitulo}
+tamTitulo = nchar(reclamacoes_avaliadas$titulo)
+cor(reclamacoes_avaliadas$insatisfacao,tamTitulo)
+```
+Novamente, correlação proxima de 0,  podemos afirmar que há indicios estátisticos que o tamanho do titulo não tem correlação com o grau de insatisfação do cliente
+
+#### Existe correlação entre o número de letras maiúsculas no texto e o grau de insatisfação?
+
+```{r corNumCapsTexto}
+numCapsTexto = str_count(reclamacoes_avaliadas$texto, "[A-Z]")
+cor(reclamacoes_avaliadas$insatisfacao,numCapsTexto)
+```
+A correlação foi próxima de 0, podemos afirmar que não possui correlação entre a quantidade de letras maiúsculas do texto e o grau de insatisfação
+
+#### Existe correlação entre o número de letras maiúsculas no título e o grau de insatisfação?
+'
+```{r corNumCapsTitulo}
+numCapsTitulo = str_count(reclamacoes_avaliadas$titulo, "[A-Z]")
+cor(reclamacoes_avaliadas$insatisfacao,numCapsTitulo)
+```
+Mais umas vez, a correlação foi próxima de 0, podemos afirmar que não possui correlação entre a quantidade de letras maiúsculas do título e o grau de insatisfação
+
+#### Existe correlação entre o percentual de letras maiúsculas no texto e o grau de insatisfação?
+
+```{r corPerCapsTexto}
+perCapsTexto = numCapsTexto / tamTexto
+cor(reclamacoes_avaliadas$insatisfacao,perCapsTexto)
+```
+Novamente, a correlação foi próxima de 0, podemos afirmar que não possui correlação entre o percentual de letras maiúsculas do texto e o grau de insatisfação
+
+#### Existe correlação entre o percentual de letras maiúsculas no título e o grau de insatisfação?
+
+```{r corPerCapsTitulo}
+perCapsTitulo = numCapsTitulo / tamTitulo
+cor(reclamacoes_avaliadas$insatisfacao,perCapsTitulo)
+```
+A correlação foi próxima de 0, podemos afirmar que não possui correlação entre o percentual de letras maiúsculas do título e o grau de insatisfação
+
+É possivel observar que em todos os casos a correlação foi baixa, a maior foi 0.21, no caso da correlação entre o tamanho do título e grau de insatisfação, mas ainda é considerado uma correlação baixa. Portanto, é possivel afirmar que o grau de insatisfação não possui relação nem com texto nem com o título
+
+### Existe correlação entre o Grau de Insatisfação e o órgão?
+
+```{r insatisfacaoOrgao}
+
+```
+
+## Regredindo
+
+```{r}
+reclamacoes_avaliadas$perCapsTexto = perCapsTexto
+ggplot(reclamacoes_avaliadas, aes(x = insatisfacao, y = perCapsTexto)) +
+  geom_point() +
+  geom_smooth(method="glm")
+
+ggplot(reclamacoes_avaliadas, aes(x = perCapsTexto, y = insatisfacao)) +
+  geom_point() +
+  geom_smooth(method="glm")
+```
+
+```{r}
+reclamacoes_avaliadas$perCapsTitulo = perCapsTitulo
+ggplot(reclamacoes_avaliadas, aes(x = insatisfacao, y = perCapsTitulo)) +
+  geom_point() +
+  geom_smooth(method="glm")
+
+ggplot(reclamacoes_avaliadas, aes(x = perCapsTitulo, y = insatisfacao)) +
+  geom_point() +
+  geom_smooth(method="glm")
+
+```
+
+```{r}
+reclamacoes_avaliadas$numCapsTexto = numCapsTexto
+ggplot(reclamacoes_avaliadas, aes(x = insatisfacao, y = numCapsTexto)) +
+  geom_point() +
+  geom_smooth(method="glm")
+
+ggplot(reclamacoes_avaliadas, aes(x = numCapsTexto, y = insatisfacao)) +
+  geom_point() +
+  geom_smooth(method="glm")
+```
+
+```{r}
+reclamacoes_avaliadas$numCapsTitulo = numCapsTitulo
+ggplot(reclamacoes_avaliadas, aes(x = insatisfacao, y = numCapsTitulo)) +
+  geom_point() +
+  geom_smooth(method="glm")
+
+ggplot(reclamacoes_avaliadas, aes(x = numCapsTitulo, y = insatisfacao)) +
+  geom_point() +
+  geom_smooth(method="glm")
+```
+
+```{r}
+x <- reclamacoes_avaliadas %>% mutate(orgao = case_when(
+      orgao == "ANATEL" ~ 1,
+      TRUE                ~ 0
+      ))
+x
+ggplot(x, aes(x = insatisfacao, y = orgao)) +
+  geom_point() +
+  geom_smooth(method="glm")
+
+ggplot(x, aes(x = orgao, y = insatisfacao)) +
+  geom_point() +
+  geom_smooth(method="glm")
+
+
+mu <- ddply(reclamacoes_avaliadas, "orgao", summarise, grp.mean=mean(insatisfacao), grp.median=median(insatisfacao), grp.moda=getmode(insatisfacao))
+head(mu)
+
+ggplot(reclamacoes_avaliadas, aes(x=insatisfacao, fill=orgao)) + geom_histogram()  + facet_grid(orgao ~ .) +
+geom_vline(data=mu, aes(xintercept=grp.mean, color="Mean")) +
+geom_vline(data=mu, aes(xintercept=grp.median, color="Median")) +
+geom_vline(data=mu, aes(xintercept=grp.moda, color="Moda")) + 
+geom_text(data=mu, aes(x=grp.mean, y = 8),label="Median")+ 
+geom_text(data=mu, aes(x=grp.median, y = 10),label="Mean")+ 
+geom_text(data=mu, aes(x=grp.moda, y = 6),label="Moda")
+
+test <- lm(insatisfacao ~ numCapsTitulo + numCapsTexto + perCapsTitulo + perCapsTexto + orgao, data = x)
+test
+summary(test)
+
+
+```
+
+##Orgao
+
+
+```{r}
+x <- as.data.frame(table(reclamacoes_avaliadas$orgao, reclamacoes_avaliadas$insatisfacao, dnn=list("orgao", "insatisfacao"))) %>% filter(orgao == "ANS")
+x <- x %>%
+  select(insatisfacao,Freq)
+ 
+x[order(-x$Freq),]
+x$Freq
+x$insatisfacao
+plot(x$insatisfacao, x$Freq, main="Avaliações da ANS", xlab="Insatisfação", ylab="Frequência")
+linha = lm(x$insatisfacao~x$Freq)
+abline(linha, col="green")
+
+```
+
+```{r}
+x <- as.data.frame(table(reclamacoes_avaliadas$orgao, reclamacoes_avaliadas$insatisfacao, dnn=list("orgao", "insatisfacao"))) %>% filter(orgao == "ANATEL")
+x <- x %>%
+  select(insatisfacao,Freq)
+ 
+x[order(-x$Freq),]
+x$Freq
+x$insatisfacao
+plot(x$insatisfacao, x$Freq, main="Avaliações da ANATEL", xlab="Insatisfação", ylab="Frequência")
+linha = lm(x$insatisfacao~x$Freq)
+abline(linha, col="green")
+
+ggplot(x, aes(x = insatisfacao, y = Freq)) +
+  geom_point() +
+  geom_smooth(method="glm", formula = x~y)
+
+
+```
+
+### Datas das reclamações
+
+#### Existe algum periodo de tempo em que tivesse mais reclamações?
+
+```{r tempo}
+```
+
+#### Existe correlação entre o periodo de tempo e o grau da insatisfação?
+
+```{r insatisfacaoTempo}
+```
+
