@@ -69,11 +69,12 @@ union <- rbind(op30, sent)
 ```
 
 ```{r}
-sum_feel <- ggplot(union[which(union$sentimento < 20),], aes(x = sentimento, y = m_aval)) +
+sum_feel <- ggplot(union, aes(x = sentimento, y = m_aval)) +
     geom_point() +
+    geom_jitter(alpha = .2) +
     labs(x = "Sentimento estimado da reclamação",
          y = "Grau de insatisfação da reclamação") + 
-    scale_x_continuous(limits = c(-10, 15)) + 
+    scale_x_continuous(limits = c(-10, 25), breaks = c(-10, -5, 0, 5, 10, 15, 20, 25)) + 
     scale_y_continuous(limits = c(1, 5), breaks = c(1:5)) + 
     facet_wrap(Type ~ .) +
     geom_smooth(formula = y ~ x)
@@ -124,8 +125,8 @@ ggplot(observations, aes(x = m_aval)) +
 mean_lex <- union %>%
     group_by(id, Type) %>%
     summarise(real_gi = m_aval,
-              pred_gi = (1 - sigmoid(mean_sent_per_word, a = 1.5, b = 0))*5 + 0.3,
-              nosig = mean_sent_per_word)
+              pred_gi = (1 - sigmoid(sentimento, a = 0.15, b = 0))*4 + 1,
+              nosig = sentimento)
 ```
 
 ### Calcula erro
@@ -154,15 +155,24 @@ error_meanlex_plot
 ggsave("../resultados/error-mean-lex-points.png", error_meanlex_plot)
 
 norm_func_meanlex_plot <- mean_lex %>% 
-    ggplot(aes(x = nosig, y = pred_gi)) + 
+    ggplot(aes(x = pred_gi, y = real_gi)) + 
     geom_point() +
-    #geom_jitter(alpha = .5)  +
-    scale_y_continuous(limits = c(1, 5), breaks = c(1:5)) + 
-    labs(x = "Média Lexicos",
-         y = "Pred GI") +
+    geom_abline(slope=1, intercept=0, color="red", 
+                 linetype="dashed") +
+    geom_abline(slope=1, intercept=1.12, color="blue", 
+                 linetype="dashed") +
+    geom_abline(slope=1, intercept=-1.12, color="blue", 
+                 linetype="dashed") +
+    geom_jitter(alpha = .5) +
+    scale_x_continuous(limits = c(1, 5)) + 
+    scale_x_continuous(limits = c(1, 5)) + 
+    labs(x = "Sentimento estimado normalizado da reclamação",
+         y = "Grau de insatisfação da reclamação") +
     facet_wrap(~ Type)
 
 norm_func_meanlex_plot
+
+sum_feel
 
 ggsave("../resultados/norm-func-mean-lex-points.png", norm_func_meanlex_plot)
 ```
